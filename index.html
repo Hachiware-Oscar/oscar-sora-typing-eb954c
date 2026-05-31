@@ -291,16 +291,19 @@ function toChunks(word){
 const HEPBURN={"し":"shi","ち":"chi","つ":"tsu","ふ":"fu","じ":"ji","ぢ":"ji","づ":"zu",
   "しゃ":"sha","しゅ":"shu","しょ":"sho","ちゃ":"cha","ちゅ":"chu","ちょ":"cho",
   "じゃ":"ja","じゅ":"ju","じょ":"jo"};
-// お手本ローマ字。撥音は文脈で n / nn を出し分け、style='hepburn'ならヘボン表記
+// 1チャンク分のお手本ローマ字。撥音は文脈で n / nn を出し分け、style='hepburn'ならヘボン表記。
+// お手本表示(canonical)とキー案内(nextCharsStyled)で同一ロジックを共有するため関数化。
+function canonicalPiece(chunk, nextChunk, style){
+  if(chunk.hatuon){
+    const start = nextChunk&&nextChunk.cands&&nextChunk.cands[0]?nextChunk.cands[0][0]:null;
+    return (!nextChunk || (start && !VOWELS.includes(start) && start!=="n" && start!=="y")) ? "n" : "nn";
+  }
+  if(style==="hepburn" && HEPBURN[chunk.kana]) return HEPBURN[chunk.kana];
+  return chunk.cands[0];
+}
+// お手本ローマ字（全チャンク連結）
 function canonical(chunks, style){
-  return chunks.map((c,i)=>{
-    if(c.hatuon){
-      const nx=chunks[i+1]; const start = nx&&nx.cands&&nx.cands[0]?nx.cands[0][0]:null;
-      return (!nx || (start && !VOWELS.includes(start) && start!=="n" && start!=="y")) ? "n" : "nn";
-    }
-    if(style==="hepburn" && HEPBURN[c.kana]) return HEPBURN[c.kana];
-    return c.cands[0];
-  }).join("");
+  return chunks.map((c,i)=>canonicalPiece(c, chunks[i+1], style)).join("");
 }
 function feed(obj, ch){
   if(obj.ci>=obj.chunks.length) return "complete";
@@ -320,6 +323,23 @@ function feed(obj, ch){
 function nextChars(obj){
   const set=new Set(); if(obj.ci>=obj.chunks.length) return set;
   const chunk=obj.chunks[obj.ci];
+  for(const c of chunk.cands){ if(c.startsWith(obj.buf) && c.length>obj.buf.length) set.add(c[obj.buf.length]); }
+  return set;
+}
+// ガイド用：お手本の式に合わせた「次の1文字」。受理は nextChars（全候補）で寛容なまま、案内だけ式に追従させる。
+// お手本(canonicalPiece)と同一ロジックで現在地の次の1文字を返し、そのチャンクを打ち切ったら次チャンクの先頭へ進む
+// （例：撥音「ん」を単独 n で打った直後は、お手本どおり次の子音を案内する）。
+// buf がお手本式と食い違う（子が別の許容式で打ち始めた）ときは、受理可能な候補からフォールバック案内する。
+function nextCharsStyled(obj, style){
+  const set=new Set(); if(obj.ci>=obj.chunks.length) return set;
+  const chunk=obj.chunks[obj.ci];
+  const piece=canonicalPiece(chunk, obj.chunks[obj.ci+1], style);
+  if(piece && piece.startsWith(obj.buf)){
+    if(piece.length>obj.buf.length){ set.add(piece[obj.buf.length]); return set; }
+    const nx=obj.chunks[obj.ci+1];
+    if(nx){ const np=canonicalPiece(nx, obj.chunks[obj.ci+2], style); if(np && np.length) set.add(np[0]); }
+    return set;
+  }
   for(const c of chunk.cands){ if(c.startsWith(obj.buf) && c.length>obj.buf.length) set.add(c[obj.buf.length]); }
   return set;
 }
@@ -714,8 +734,9 @@ function updateKeyHints(){
   if(!engine.active){ clearHints(); return; }
   const set=new Set(); let primary=null, lowest=null;
   const src = engine.lock? [engine.lock] : engine.objects;
-  for(const o of src){ if(!o.alive) continue; for(const c of nextChars(o)) set.add(c); if(!lowest||o.y>lowest.y) lowest=o; }
-  if(lowest){ for(const c of nextChars(lowest)){ primary=c; break; } }
+  const style=save.settings.romaStyle;
+  for(const o of src){ if(!o.alive) continue; for(const c of nextCharsStyled(o, style)) set.add(c); if(!lowest||o.y>lowest.y) lowest=o; }
+  if(lowest){ for(const c of nextCharsStyled(lowest, style)){ primary=c; break; } }
   const sig=[...set].sort().join("")+"|"+primary;
   if(sig===lastHint) return; lastHint=sig;
   document.querySelectorAll(".key").forEach(el=>{
