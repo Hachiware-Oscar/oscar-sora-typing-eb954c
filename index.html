@@ -163,7 +163,7 @@
 const SAVE_KEY = "oscar-typing-save-v1";
 const defaultSave = ()=>({
   unlocked:{1:1,2:1,3:1}, stars:{}, high:{}, stickers:[],
-  settings:{vol:0.7, bgm:true, romaHint:true, muted:false, romaStyle:"hepburn", speed:"normal"}
+  settings:{vol:0.7, bgm:true, romaHint:true, muted:false, romaStyle:"hepburn", speed:"normal", fingerGuide:true}
 });
 let save = load();
 function load(){
@@ -759,7 +759,7 @@ function updateKeyHints(){
     const k=el.dataset.key; el.className="key"+((k==="f"||k==="j")?" home":"");
     if(set.has(k)){ el.classList.add("lit", FINGER[k]); if(k===primary) el.classList.add("next"); }
   });
-  if(engine.level===1 && primary && FINGER[primary]) showFinger(primary); else hideFinger();
+  if(save.settings.fingerGuide!==false && primary && FINGER[primary]) showFinger(primary); else hideFinger();
 }
 function showFinger(k){ const cls=FINGER[k];
   document.getElementById("finger-dot").style.background="var(--"+cls+")";
@@ -880,6 +880,7 @@ function screenSettings(){
       <div class="setrow"><span>🔊 おとの おおきさ</span><input type="range" id="set-vol" min="0" max="1" step="0.1" value="${s.vol}"></div>
       <div class="setrow"><span>🎵 ＢＧＭ</span><div class="toggle ${s.bgm?'on':''}" id="set-bgm"></div></div>
       <div class="setrow"><span>🔠 ろーまじの おてほん</span><div class="toggle ${s.romaHint?'on':''}" id="set-roma"></div></div>
+      <div class="setrow"><span>🖐️ ゆびガイド</span><div class="toggle ${s.fingerGuide!==false?'on':''}" id="set-finger"></div></div>
       <div class="setrow"><span>✏️ うちかた</span><div class="row" style="gap:6px">
         <button class="btn ${s.romaStyle!=='kunrei'?'blue':'gray'}" id="set-hb" style="font-size:15px;padding:.35em .9em">shi・chi</button>
         <button class="btn ${s.romaStyle==='kunrei'?'blue':'gray'}" id="set-kn" style="font-size:15px;padding:.35em .9em">si・ti</button>
@@ -893,6 +894,7 @@ function screenSettings(){
   document.getElementById("set-vol").addEventListener("input",e=>{ s.vol=parseFloat(e.target.value); Audio2.setVol(); persist(); });
   document.getElementById("set-bgm").addEventListener("click",e=>{ s.bgm=!s.bgm; e.currentTarget.classList.toggle("on",s.bgm); Audio2.refreshBgm(); persist(); });
   document.getElementById("set-roma").addEventListener("click",e=>{ s.romaHint=!s.romaHint; e.currentTarget.classList.toggle("on",s.romaHint); persist(); });
+  document.getElementById("set-finger").addEventListener("click",e=>{ s.fingerGuide=(s.fingerGuide===false); e.currentTarget.classList.toggle("on",s.fingerGuide); updateKeyHints(); persist(); });
   document.getElementById("set-hb").addEventListener("click",()=>{ s.romaStyle="hepburn"; persist(); screenSettings(); });
   document.getElementById("set-kn").addEventListener("click",()=>{ s.romaStyle="kunrei"; persist(); screenSettings(); });
   document.getElementById("set-speed").querySelectorAll("[data-speed]").forEach(b=>b.addEventListener("click",()=>{ s.speed=b.dataset.speed; persist(); screenSettings(); }));
