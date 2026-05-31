@@ -255,15 +255,23 @@ const SMALL_Y = {"ゃ":1,"ゅ":1,"ょ":1};
 const VOWELS = "aiueo";
 function isLetterWord(s){ return /^[a-zA-Z]$/.test(s); }
 
+// カタカナ→ひらがな（入力判定の正規化用。表示は元の word のまま）。長音符ー・中点などはそのまま残す
+function kataToHira(s){
+  let out="";
+  for(const ch of s){ const code=ch.charCodeAt(0); out += (code>=0x30A1 && code<=0x30F6) ? String.fromCharCode(code-0x60) : ch; }
+  return out;
+}
 function toChunks(word){
   if(isLetterWord(word)){ return [{kana:word, cands:[word.toLowerCase()]}]; }
+  const src = kataToHira(word);   // 表示はカタカナのまま、ローマ字判定だけ正規化（ママ→まま 等）
   const raw=[]; let i=0;
-  while(i<word.length){
-    const two = word.substr(i,2);
-    if(word[i+1] && SMALL_Y[word[i+1]] && KANA[two]){ raw.push({kana:two, cands:KANA[two].slice()}); i+=2; continue; }
-    const c = word[i];
+  while(i<src.length){
+    const two = src.substr(i,2);
+    if(src[i+1] && SMALL_Y[src[i+1]] && KANA[two]){ raw.push({kana:two, cands:KANA[two].slice()}); i+=2; continue; }
+    const c = src[i];
     if(c==="っ"){ raw.push({kana:"っ", sokuon:true}); i++; continue; }
     if(c==="ん"){ raw.push({kana:"ん", hatuon:true}); i++; continue; }
+    if(c==="ー"){ raw.push({kana:"ー", longvowel:true}); i++; continue; }
     if(KANA[c]){ raw.push({kana:c, cands:KANA[c].slice()}); i++; continue; }
     raw.push({kana:c, cands:[c.toLowerCase()]}); i++;
   }
@@ -283,6 +291,12 @@ function toChunks(word){
       // 語末、または次が母音/な行/や行 以外 → n 1回でも可（feed の isLast が語末を確定させる）
       if(!nx || (start && !VOWELS.includes(start) && start!=="n" && start!=="y")) cands.push("n");
       ch.cands=cands;
+    }
+    if(ch.longvowel){
+      // 長音符ー：直前の音の母音を繰り返す（おすかー→osukaa / ぴーぽ→piipo）。直前が母音でなければ "-"
+      const prev=raw[k-1]; const pc = prev&&prev.cands&&prev.cands[0] ? prev.cands[0] : "";
+      const last = pc ? pc[pc.length-1] : "";
+      ch.cands = VOWELS.includes(last) ? [last] : ["-"];
     }
   }
   return raw;
@@ -375,7 +389,8 @@ const L1_STAGES = [
 const L2_WORDS = [
   "そら","ねこ","いぬ","はな","つき","ほし","やま","うみ","とり","くも","あめ","ゆき","かぜ","くち","みみ",
   "さる","くま","ぞう","かに","たこ","いか","ふね","くるま","さかな","ことり","ひよこ","たまご","めだか","かめ","りす",
-  "みかん","ばなな","いちご","ぶどう","とまと","にんじん","だいこん","おにぎり"
+  "みかん","ばなな","いちご","ぶどう","とまと","にんじん","だいこん","おにぎり",
+  "ママ","パパ","ことは","オスカー","みくりん","ぴーぽ","りんごちゃん","ばあば","はやし","なほり","じゅんぺい"
 ];
 const L3_WORDS = [
   "がっこう","おはよう","ありがとう","しんかんせん","でんしゃ","ひこうき","きんぎょ","らっこ","きって","しっぽ",
@@ -403,6 +418,7 @@ const SPEECH = {
 const pick = a => a[Math.floor(Math.random()*a.length)];
 // 落ちるスピードの倍率（せってい）
 const SPEED = { veryeasy:0.5, easy:0.72, normal:1.0, hard:1.45 };
+const FALL_SCALE = 0.5;   // 落下スピードの基準スケール。全体を半分に（とてもゆっくりでもまだ速い対策／速くしたい時は設定で調整）
 const SPEED_LABEL = { veryeasy:"とても ゆっくり", easy:"ゆっくり", normal:"ふつう", hard:"はやい" };
 
 /* ============================ Canvas／描画 ============================ */
@@ -586,7 +602,7 @@ function makeObject(kind){
   if(kind==="sparkle") vy*=1.35; if(kind==="boss") vy*=0.7;
   if(engine.phase==="bonus") vy*=0.6;
   if(engine.level===1) vy=Math.min(vy, 78);            // レベル1は速すぎないよう上限
-  vy *= (SPEED[save.settings.speed] || 1);             // ユーザーが選んだ おちる スピード
+  vy *= (SPEED[save.settings.speed] || 1) * FALL_SCALE; // 選んだスピード × 基準スケール(FALL_SCALE)
   return {x, y:-r, vy, word, display, chunks, ci:0, buf:"", kind:kind||"normal",
     level:engine.level, roma:canonical(chunks, save.settings.romaStyle), typedShown:0, spawnAnim:0, alive:true, r};
 }
