@@ -57,8 +57,13 @@
   #keyboard{position:absolute; left:0; right:0; bottom:0; z-index:7;
     padding:8px calc(clamp(6px,2vw,22px) + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(clamp(6px,2vw,22px) + env(safe-area-inset-left));
     background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.55) 30%,rgba(255,255,255,.85));
-    display:flex; flex-direction:column; gap:clamp(4px,.8vh,8px);}
-  .krow{display:flex; justify-content:center; gap:clamp(4px,.9vw,9px);}
+    display:flex; flex-direction:column; align-items:center; gap:clamp(4px,.8vh,8px);
+    --kw:clamp(30px,7.4vw,64px); --kg:clamp(4px,.9vw,9px); --kunit:calc(var(--kw) + var(--kg));}
+  .kbwrap{display:flex; flex-direction:column; gap:clamp(4px,.8vh,8px);}
+  .krow{display:flex; justify-content:flex-start; gap:clamp(4px,.9vw,9px);}
+  .krow-r1{margin-left:calc(var(--kunit) * .25);}   /* a段を実機どおり右へ段ずらし */
+  .krow-r2{margin-left:calc(var(--kunit) * .75);}   /* z段をさらに右へ */
+  .krow-sym{margin-left:calc(var(--kunit) * 9.0);}  /* 長音符ーをPの真上(右上)に単独配置 */
   .key{flex:0 0 auto; width:clamp(30px,7.4vw,64px); height:clamp(34px,7vh,58px);
     border-radius:12px; background:#fff; box-shadow:0 4px 0 #d7d7e6; display:grid; place-items:center;
     font-size:clamp(15px,2.6vw,24px); font-weight:700; color:#9aa; cursor:pointer; position:relative;
@@ -365,7 +370,7 @@ function typedLen(obj){
 
 /* ============================ データ ============================ */
 const KB_ROWS = [
-  ["q","w","e","r","t","y","u","i","o","p","-"],
+  ["q","w","e","r","t","y","u","i","o","p"],
   ["a","s","d","f","g","h","j","k","l"],
   ["z","x","c","v","b","n","m"]
 ];
@@ -736,15 +741,18 @@ function tick(now){
 /* ============================ 画面キーボード ============================ */
 function buildKeyboard(){
   const kb=document.getElementById("keyboard"); kb.innerHTML="";
-  for(const row of KB_ROWS){
-    const rd=document.createElement("div"); rd.className="krow";
-    for(const k of row){
-      const el=document.createElement("div"); el.className="key"+((k==="f"||k==="j")?" home":""); el.dataset.key=k; el.textContent=k;
-      el.addEventListener("pointerdown",(e)=>{ e.preventDefault(); Audio2.resume(); onKey(k); });
-      rd.appendChild(el);
-    }
-    kb.appendChild(rd);
-  }
+  const wrap=document.createElement("div"); wrap.className="kbwrap";
+  const mkKey=(k)=>{ const el=document.createElement("div"); el.className="key"+((k==="f"||k==="j")?" home":""); el.dataset.key=k; el.textContent=k;
+    el.addEventListener("pointerdown",(e)=>{ e.preventDefault(); Audio2.resume(); onKey(k); }); return el; };
+  // 長音符ーは数字段の位置イメージで右上に単独配置（実機JIS）
+  const symRow=document.createElement("div"); symRow.className="krow krow-sym"; symRow.appendChild(mkKey("-")); wrap.appendChild(symRow);
+  // 文字3段は実機どおり右へ段ずらし
+  KB_ROWS.forEach((row,ri)=>{
+    const rd=document.createElement("div"); rd.className="krow krow-r"+ri;
+    for(const k of row) rd.appendChild(mkKey(k));
+    wrap.appendChild(rd);
+  });
+  kb.appendChild(wrap);
   resize();
 }
 let lastHint="";
