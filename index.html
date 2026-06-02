@@ -177,7 +177,9 @@ const Audio2 = (()=>{
   let ctx=null, master=null, bgmTimer=null, bgmStep=0;
   function ensure(){
     if(ctx) return;
-    try{ ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+    const ACtx = window.AudioContext||window.webkitAudioContext; if(!ACtx) return;
+    try{ ctx = new ACtx({latencyHint:"interactive"}); }   // 低レイテンシ要求（打鍵音のズレ低減）
+    catch(e){ try{ ctx = new ACtx(); }catch(e2){ return; } }
     master = ctx.createGain(); master.gain.value = save.settings.muted?0:save.settings.vol; master.connect(ctx.destination);
   }
   function resume(){ ensure(); if(ctx){ if(ctx.state==="suspended") ctx.resume();
@@ -187,7 +189,7 @@ const Audio2 = (()=>{
     if(!ctx) return; when = when||ctx.currentTime;
     const o=ctx.createOscillator(), g=ctx.createGain();
     o.type=type||"sine"; o.frequency.setValueAtTime(freq,when);
-    g.gain.setValueAtTime(0,when); g.gain.linearRampToValueAtTime(gain||0.2,when+0.012);
+    g.gain.setValueAtTime(0,when); g.gain.linearRampToValueAtTime(gain||0.2,when+0.004);
     g.gain.exponentialRampToValueAtTime(0.0008,when+dur);
     o.connect(g); g.connect(master); o.start(when); o.stop(when+dur+0.02);
   }
